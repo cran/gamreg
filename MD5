@@ -1,0 +1,8 @@
+4b221a14d24ed16a615f1924572d15c5 *DESCRIPTION
+cc200a90bb59f7b842f77fdb745c4120 *NAMESPACE
+d29c53862e0684344e108544d4c48fd6 *R/RcppExports.R
+ce167feece7268d93b4427deea2ae4af *R/cv_gam.R
+ac68cb2f778f28e8036cb6a15b173952 *man/cv_gam.Rd
+ce6e7e3ea5d185dbf90df472a5dc240e *src/Makevars.win
+816a0be44a6cacc64a54e63ee7f8b95a *src/RcppExports.cpp
+6a99ff9befd892c59cc9a44448682973 *src/sparse_gamreg.cpp
