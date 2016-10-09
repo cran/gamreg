@@ -2,6 +2,9 @@
 //'  @importFrom Rcpp evalCpp
 // [[Rcpp::depends(RcppArmadillo)]]
 #include <RcppArmadillo.h>
+#include <R.h>
+
+using namespace std;
 using namespace Rcpp;
 using namespace arma;
 
