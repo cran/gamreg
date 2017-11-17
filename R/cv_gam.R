@@ -9,7 +9,7 @@
 #'
 #'
 #' @export
-cv.gam <- function(X,Y,init.mode=c("sLTS","RLARS","RANSAC"),lambda.mode="lambda0",
+cv.gam <- function(X, Y, init.mode=c("sLTS","RLARS","RANSAC"),lambda.mode="lambda0",
                    lmax=1,lmin=0.05, nlambda=50, fold=10,
                    ncores=1, gam=0.1, gam0=0.5, intercept="TRUE", alpha=1,
                    ini.subsamp=0.2, ini.cand=1000,
@@ -68,7 +68,7 @@ cv.gam <- function(X,Y,init.mode=c("sLTS","RLARS","RANSAC"),lambda.mode="lambda0
   init <- match.arg(init.mode)
 
   if(init=="RANSAC"){
-    ransac <- gam.ini(X, Y, ini.subsamp, ncores, ini.cand, alpha)
+    ransac <- gam.ini(X, Y, ini.subsamp, ncores, ini.cand, alpha, gam0)
 
     beta0.init <- inter*(ransac$beta0)
     beta.init <- as.matrix(ransac$beta)
@@ -97,8 +97,9 @@ cv.gam <- function(X,Y,init.mode=c("sLTS","RLARS","RANSAC"),lambda.mode="lambda0
   lmode <- match.arg(lambda.mode)
 
   if(lmode=="lambda0"){
-    tmp <- lambda.ini(X, Y, beta0.init, beta.init, sigma.init ,gam)
-    lambda <- exp(seq(  log(0.05*tmp)  ,log(tmp)  ,length=nlambda))
+      tmp <- lambda.ini(X, Y, beta0.init, beta.init, sigma.init ,gam)
+      ratio <- 0.05
+      lambda <- exp(seq(  log(ratio*tmp)  ,log(tmp)  ,length=nlambda))
   }else{
     lambda <- exp(seq( log(lmin)  ,log(lmax)  ,length=nlambda))
   }
@@ -122,15 +123,13 @@ cv.gam <- function(X,Y,init.mode=c("sLTS","RLARS","RANSAC"),lambda.mode="lambda0
 
 
     for(k in 1:nlambda){
-      res <- gam_reg(X.tra, Y.tra, beta.init, beta0.init,sigma.init,  lambda[k], gam,glmnet,inter,alpha)
+      res <- gam_reg(X.tra, Y.tra, beta.init, beta0.init, sigma.init, lambda[k], gam, glmnet, inter, alpha)
       res.cv[k] <- sum(dnorm(Y.test, res$beta0*(numeric(length(Y.test))+1)+X.test%*%res$beta, sigma.cv)^gam0)
     }
     res.cvtmp <- res.cvtmp + res.cv
   }
 
-  #tmp1 <- (-1/gam0)*log(res.cvtmp[,1]) +(1/(1+gam0))*log(res.cvtmp[,2])
   tmp2 <- (-1/gam0)*log(res.cvtmp)
-  #tmp1 <- sort.list(tmp1)[1]
   tmp2 <- sort.list(tmp2)[1]
 
   res.reggam <- list()
@@ -139,78 +138,60 @@ cv.gam <- function(X,Y,init.mode=c("sLTS","RLARS","RANSAC"),lambda.mode="lambda0
     res.reggam[[k]] <- list(beta0=res$beta0, beta=res$beta, sigma=res$sigma)
   }
 
-
   cat("\n")
   cat("init.mode is" , init, "\n")
   cat("The number of lambda is" ,nlambda ,"\n")
   cat("gamma is", gam, "gamma0 is",gam0 ,"\n")
 
-
   return(list(lambda=lambda, fit=res.reggam, Rocv= res.reggam[[tmp2]] ) )
 }
 
 
-res.cal <- function(x,a){
-  h <- floor(length(x)*a)
-  t <- sqrt(sum(sort(x^2)[1:h])/h)
-  return(t)
-}
-gam.ini <- function(X, Y, ini.subsamp, cl.num, ini.cand, reg.alpha){
+gam.ini <- function(X, Y, ini.subsamp, cl.num, ini.cand, reg.alpha, gam0){
 
   cl.ini <- makeCluster(cl.num)
   registerDoParallel(cl.ini)
   on.exit(stopCluster(cl.ini))
   ini.sam <- floor(nrow(X)*ini.subsamp)
 
+  p <- ncol(X)
+  n <- nrow(X)
+  tmp <- foreach(k =1:ini.cand, .combine=rbind, .packages='glmnet')%dopar%{
 
-    p <- ncol(X)
-    n <- nrow(X)
-    tmp <- foreach(k =1:ini.cand, .combine=rbind, .packages='glmnet', .export="res.cal")%dopar%{
+      t <- sample(n,ini.sam)
+      x <- X[t,]
+      y <- Y[t,]
 
-    t <- sample(n,ini.sam)
-    x <- X[t,]
-    y <- Y[t,]
+      x_t <- X[setdiff(1:n,t),]
+      y_t <- Y[setdiff(1:n,t),]
 
-    x_t <- X[setdiff(1:n,t),]
-    y_t <- Y[setdiff(1:n,t),]
+      res <- glmnet(x,y,family="gaussian",alpha=reg.alpha)
+      sigma <- apply( abs(matrix(y,nrow =nrow(x),ncol=length(res$lambda))- matrix(res$a0,nrow =nrow(x),ncol=length(res$lambda),byrow=TRUE)-x%*%res$beta ),2, median )
+      sigma <- 1.4826*sigma
+      sigma <- t(matrix(sigma,ncol =nrow(x_t),nrow=length(res$lambda)))
 
+      a <- matrix(y_t,nrow =nrow(x_t),ncol=length(res$lambda))- matrix(res$a0,nrow =nrow(x_t),ncol=length(res$lambda),byrow=TRUE)-x_t%*%res$beta
 
+      tmp1 <- (-1/gam0)*log ( (1/nrow(x_t))*colSums((exp(-a^2/(2*sigma^2))/sqrt((2*pi*sigma^2)) )^gam0))-(gam0/(2*(1+gam0)))*log(sigma[1,]^2)
+      tmp2 <-  which.min(tmp1)
 
-    res <- glmnet(x,y,family="gaussian",alpha=reg.alpha)
-
-
-
-    sigma <- apply( abs(matrix(y,nrow =nrow(x),ncol=length(res$lambda))- matrix(res$a0,nrow =nrow(x),ncol=length(res$lambda),byrow=TRUE)-x%*%res$beta ),2, median )
-    sigma <- 1.4826*sigma
-    tmp1 <- apply( matrix(y_t,nrow =nrow(x_t),ncol=length(res$lambda))- matrix(res$a0,nrow =nrow(x_t),ncol=length(res$lambda),byrow=TRUE)-x_t%*%res$beta,2, res.cal, 0.5 )
-    tmp2 <-  which.min(tmp1)
-
-    return(  c(tmp1[tmp2],res$a0[tmp2],res$beta[,tmp2], sigma[tmp2]) )
-
-  }
-
-
-    ini.ind <-  which.min(tmp[,1])
-
-
-    return( list(beta0=unname(tmp[ini.ind, 2]), beta=unname(tmp[ini.ind, 3:(p+2)]), sigma=unname(tmp[ini.ind, (p+3)]))     )
-
+      return(  c(tmp1[tmp2],res$a0[tmp2],res$beta[,tmp2], sigma[1,tmp2]) )
     }
+
+  ini.ind <-  which.min(tmp[,1])
+  return( list(beta0=unname(tmp[ini.ind, 2]), beta=unname(tmp[ini.ind, 3:(p+2)]), sigma=unname(tmp[ini.ind, (p+3)])) )
+}
+
+
+
 
 lambda.ini <- function(X, Y, beta0, beta, sigma, gam){
 
-  beta0.init <- beta0
-  beta.init <- beta
-  sigma.init <- sigma
-
-
   tmp4 <- (numeric(nrow(X))+1)
+  tmp1 <- beta0*tmp4
+  tmp2 <- X%*%beta
 
-  tmp1 <- beta0.init*tmp4
-  tmp2 <- X%*%beta.init
-  tmp3 <- tmp1 +tmp2
-
-  alpha <- exp(-gam*(Y-tmp3)^2/(2*sigma.init^2) )
+  alpha <- exp(-gam*(Y-tmp1-tmp2)^2/(2*sigma^2) )
   alpha <- alpha/sum(alpha)
 
   tmp1 <- sum(alpha*(Y - tmp2))*tmp4
@@ -218,6 +199,7 @@ lambda.ini <- function(X, Y, beta0, beta, sigma, gam){
   Y.lasso <- sqrt(alpha)*(Y-tmp1)
   X.lasso <- diag(c(sqrt(alpha)))%*%X
 
-  return (lambda0(X.lasso/sigma.init, Y.lasso/sigma.init, intercept=FALSE))
+  return (lambda0(X.lasso/sigma, Y.lasso/sigma, intercept=FALSE))
 }
+
 

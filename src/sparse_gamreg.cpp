@@ -1,6 +1,9 @@
-//'  @useDynLib gamreg
+//'  @useDynLib(gamreg, .registration = TRUE)
 //'  @importFrom Rcpp evalCpp
 // [[Rcpp::depends(RcppArmadillo)]]
+
+// RegisteringDynamic Symbols
+
 #include <RcppArmadillo.h>
 #include <R.h>
 
@@ -10,7 +13,7 @@ using namespace arma;
 
 //
 // [[Rcpp::export]]
-List gam_reg( arma::mat X, arma::mat Y, arma::mat beta, double beta0, double sigma, double lambda, double gam, Rcpp::Function f , int inter, double regul_alp ){
+List gam_reg( arma::mat X, arma::mat Y, arma::mat beta, double beta0, double sigma, double lambda, double gam, Rcpp::Function f , int inter, double regul_alp  ){
 
   if(all(beta.col(0)==0)){
     List res;
@@ -81,4 +84,10 @@ List gam_reg( arma::mat X, arma::mat Y, arma::mat beta, double beta0, double sig
   res["sigma"] =sigma;
   return res;
 
+}
+
+
+void R_init_markovchain(DllInfo* info) {
+  R_registerRoutines(info, NULL, NULL, NULL, NULL);
+  R_useDynamicSymbols(info, TRUE);
 }

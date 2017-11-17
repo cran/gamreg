@@ -9,7 +9,7 @@
          nlambda.LTS = 40)
 }
 \description{
-  Compute Robsut Cross-Validation for selecting best model.
+  Compute Robust Cross-Validation for selecting best model.
 }
 \arguments{
   \item{X}{Predictor variables Matrix.}
@@ -36,8 +36,8 @@
   \item{Rocv}{The result of best model by Robust Cross-Validation.}
 }
 \references{
-  Kawashima, T. and Fujisawa, H. (2016).
-  \emph{Robust and Sparse Regression via gamma-divergence, submitted.}\cr
+  Kawashima, T. and Fujisawa, H. (2017).
+  \emph{Robust and Sparse Regression via gamma-divergence, Entropy, 19(11).}\cr
   Fujisawa, H. and Eguchi, S. (2008).
   \emph{Robust parameter estimation with a small bias against heavy contamination, Journal of Multivariate Analysis, 99(9), 2053-2081.}\cr
 }
